@@ -29,6 +29,7 @@ def test_connection_with_ssl(server_hostname, http_path, personal_access_token, 
             server_hostname=server_hostname,
             http_path=http_path,
             personal_access_token=personal_access_token,
+            _tls_no_verify=not verify_ssl,
         )
         print("✅ Connection successful!")
         
@@ -66,6 +67,7 @@ def test_table_access(server_hostname, http_path, personal_access_token, table_n
             server_hostname=server_hostname,
             http_path=http_path,
             personal_access_token=personal_access_token,
+            _tls_no_verify=not verify_ssl,
         )
         
         cursor = connection.cursor()

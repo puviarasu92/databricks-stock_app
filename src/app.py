@@ -104,6 +104,7 @@ if st.sidebar.button("Load Data", use_container_width=True):
                     server_hostname=server_hostname,
                     http_path=http_path,
                     personal_access_token=personal_access_token,
+                    _tls_no_verify=not verify_ssl,
                 )
             
             with st.spinner(f"Loading data from {table_name}..."):
