@@ -5,6 +5,16 @@ import streamlit as st
 import pandas as pd
 from databricks import sql
 
+
+def detect_date_column(columns):
+    """Return the best matching date column name from the dataset."""
+    preferred = ["date", "trade_date", "business_date", "timestamp", "event_time", "datetime"]
+    col_map = {c.lower(): c for c in columns}
+    for name in preferred:
+        if name in col_map:
+            return col_map[name]
+    return None
+
 # Suppress SSL warnings if verification is disabled
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -70,7 +80,13 @@ if not verify_ssl:
 
 st.sidebar.markdown("---")
 
-# Query and display data
+# Keep loaded data across reruns so filters remain interactive.
+if "loaded_df" not in st.session_state:
+    st.session_state.loaded_df = None
+if "loaded_table" not in st.session_state:
+    st.session_state.loaded_table = ""
+
+# Query and store data
 if st.sidebar.button("Load Data", use_container_width=True):
     if not all([server_hostname, http_path, personal_access_token, table_name]):
         st.error("❌ Please fill in all connection settings.")
@@ -97,34 +113,73 @@ if st.sidebar.button("Load Data", use_container_width=True):
                 columns = [desc[0] for desc in cursor.description]
                 cursor.close()
                 connection.close()
-            
-            # Display data
+            st.session_state.loaded_df = pd.DataFrame(results, columns=columns)
+            st.session_state.loaded_table = table_name
+
             st.success(f"✅ Successfully loaded {len(results)} rows")
-            
-            # Display in table format
-            df = pd.DataFrame(results, columns=columns)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Total Rows", len(results))
-            with col2:
-                st.metric("Total Columns", len(columns))
-            
-            st.markdown("### Data Preview")
-            st.dataframe(df, use_container_width=True)
-            
-            # Download option
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download as CSV",
-                data=csv,
-                file_name=f"{table_name.replace('.', '_')}_data.csv",
-                mime="text/csv"
-            )
             
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
             st.info("Please check your connection settings and try again.")
+
+# Filter and display loaded data
+if st.session_state.loaded_df is not None:
+    df = st.session_state.loaded_df.copy()
+
+    st.sidebar.header("Data Filters")
+
+    filter_columns = ["symbol", "instrument", "exchange_segment"]
+    selected_values = {}
+
+    for col in filter_columns:
+        if col in df.columns:
+            options = ["All"] + sorted(df[col].dropna().astype(str).unique().tolist())
+            selected_values[col] = st.sidebar.selectbox(
+                f"{col.replace('_', ' ').title()}",
+                options,
+                key=f"filter_{col}"
+            )
+
+    date_col = detect_date_column(df.columns)
+    from_date = None
+    to_date = None
+    if date_col:
+        parsed_dates = pd.to_datetime(df[date_col], errors="coerce").dropna()
+        if not parsed_dates.empty:
+            min_date = parsed_dates.min().date()
+            max_date = parsed_dates.max().date()
+            from_date = st.sidebar.date_input("From Date", value=min_date, min_value=min_date, max_value=max_date)
+            to_date = st.sidebar.date_input("To Date", value=max_date, min_value=min_date, max_value=max_date)
+
+    filtered_df = df
+    for col, value in selected_values.items():
+        if value != "All":
+            filtered_df = filtered_df[filtered_df[col].astype(str) == value]
+
+    if date_col and from_date and to_date:
+        if from_date > to_date:
+            st.warning("From Date is greater than To Date. Showing empty result.")
+            filtered_df = filtered_df.iloc[0:0]
+        else:
+            parsed = pd.to_datetime(filtered_df[date_col], errors="coerce")
+            filtered_df = filtered_df[parsed.dt.date.between(from_date, to_date)]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Filtered Rows", len(filtered_df))
+    with col2:
+        st.metric("Total Columns", len(filtered_df.columns))
+
+    st.markdown("### Data Preview")
+    st.dataframe(filtered_df, use_container_width=True)
+
+    csv = filtered_df.to_csv(index=False)
+    st.download_button(
+        label="📥 Download as CSV",
+        data=csv,
+        file_name=f"{st.session_state.loaded_table.replace('.', '_')}_filtered_data.csv",
+        mime="text/csv"
+    )
 
 # Footer
 st.markdown("---")
@@ -133,7 +188,8 @@ st.sidebar.markdown(
     ### 📖 Help
     1. Enter your Databricks connection details
     2. Specify the table name (catalog.schema.table)
-    3. Click "Load Data" to fetch and display rows
-    4. Use the download button to export as CSV
+    3. Click "Load Data" to fetch rows
+    4. Use Symbol/Instrument/Exchange Segment/date filters
+    5. Use the download button to export filtered data as CSV
     """
 )
