@@ -50,10 +50,12 @@ jobs:
     
     - name: Configure Databricks CLI
       run: |
-        mkdir -p ~/.databrickscfg
-        echo "[DEFAULT]" > ~/.databrickscfg
-        echo "host = https://${{ secrets.DATABRICKS_HOST }}" >> ~/.databrickscfg
-        echo "token = ${{ secrets.DATABRICKS_TOKEN }}" >> ~/.databrickscfg
+        if [ -d ~/.databrickscfg ]; then rm -rf ~/.databrickscfg; fi
+        cat > ~/.databrickscfg <<EOF
+        [DEFAULT]
+        host = https://${{ secrets.DATABRICKS_HOST }}
+        token = ${{ secrets.DATABRICKS_TOKEN }}
+        EOF
         chmod 600 ~/.databrickscfg
     
     - name: Deploy to Databricks Workspace
