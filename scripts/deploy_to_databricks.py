@@ -112,7 +112,7 @@ def upload_to_databricks(
                 try:
                     client.workspace.upload(
                         path=workspace_file_path,
-                        contents=file_content,
+                        content=file_content,
                         overwrite=True
                     )
                     print(f"  ✓ Uploaded {local_file} → {workspace_file_path}")
