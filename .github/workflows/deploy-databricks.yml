@@ -1,0 +1,116 @@
+name: Deploy to Databricks
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'app.py'
+      - 'app_env.py'
+      - 'config.py'
+      - 'requirements.txt'
+      - '.github/workflows/deploy-databricks.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-databricks-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-databricks-
+    
+    - name: Install Databricks CLI
+      run: |
+        python -m pip install --upgrade pip
+        pip install databricks-cli
+    
+    - name: Configure Databricks CLI
+      run: |
+        mkdir -p ~/.databrickscfg
+        echo "[DEFAULT]" > ~/.databrickscfg
+        echo "host = https://${{ secrets.DATABRICKS_HOST }}" >> ~/.databrickscfg
+        echo "token = ${{ secrets.DATABRICKS_TOKEN }}" >> ~/.databrickscfg
+        chmod 600 ~/.databrickscfg
+    
+    - name: Deploy to Databricks Workspace
+      run: |
+        python scripts/deploy_to_databricks.py \
+          --host ${{ secrets.DATABRICKS_HOST }} \
+          --token ${{ secrets.DATABRICKS_TOKEN }} \
+          --workspace-path ${{ secrets.DATABRICKS_WORKSPACE_PATH }} \
+          --app-name databricks-gold-table-viewer
+    
+    - name: Verify Deployment
+      run: |
+        python scripts/verify_deployment.py \
+          --host ${{ secrets.DATABRICKS_HOST }} \
+          --token ${{ secrets.DATABRICKS_TOKEN }} \
+          --workspace-path ${{ secrets.DATABRICKS_WORKSPACE_PATH }}
+    
+    - name: Slack Notification on Success
+      if: success()
+      uses: slackapi/slack-github-action@v1
+      with:
+        payload: |
+          {
+            "text": "✅ Databricks App Deployment Successful",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*✅ Databricks App Deployment Successful*\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}"
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      continue-on-error: true
+    
+    - name: Slack Notification on Failure
+      if: failure()
+      uses: slackapi/slack-github-action@v1
+      with:
+        payload: |
+          {
+            "text": "❌ Databricks App Deployment Failed",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*❌ Databricks App Deployment Failed*\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View>"
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      continue-on-error: true
