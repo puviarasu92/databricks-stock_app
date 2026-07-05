@@ -1,0 +1,13 @@
+"""
+Configuration for Databricks CLI
+This file can be used to configure the Databricks CLI for deployment
+"""
+
+# ~/.databrickscfg
+# [DEFAULT]
+# host = https://example.cloud.databricks.com
+# token = dapi...
+
+# Or set environment variables:
+# export DATABRICKS_HOST=https://example.cloud.databricks.com
+# export DATABRICKS_TOKEN=dapi...
