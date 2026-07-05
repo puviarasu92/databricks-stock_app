@@ -13,6 +13,23 @@ from pathlib import Path
 from databricks.sdk import WorkspaceClient
 
 
+def build_workspace_app_path(workspace_path: str, app_name: str) -> str:
+    """Build a stable Databricks workspace path for app uploads."""
+    normalized = workspace_path.strip().strip("/")
+
+    # Accept values like:
+    # - your.email@company.com
+    # - Users/your.email@company.com
+    # - /Users/your.email@company.com
+    # - /Workspace/Users/your.email@company.com
+    if normalized.startswith("Workspace/"):
+        normalized = normalized[len("Workspace/") :]
+    if normalized.startswith("Users/"):
+        normalized = normalized[len("Users/") :]
+
+    return f"/Users/{normalized}/{app_name}"
+
+
 def create_deployment_package(output_path: str) -> str:
     """Create a deployment package containing all necessary files"""
     print(f"📦 Creating deployment package...")
@@ -64,8 +81,14 @@ def upload_to_databricks(
         # Upload directory structure
         print(f"\n📤 Uploading app to workspace...")
         
-        # Create workspace directories
-        workspace_app_path = f"/Workspace/Users/{workspace_path}/{app_name}"
+        workspace_app_path = build_workspace_app_path(workspace_path, app_name)
+        print(f"   Destination path: {workspace_app_path}")
+
+        # Ensure destination directory exists
+        try:
+            client.workspace.mkdirs(workspace_app_path)
+        except Exception as e:
+            print(f"  ⚠ Could not create directory {workspace_app_path}: {str(e)}")
         
         # Upload files
         files_to_upload = [
@@ -76,6 +99,8 @@ def upload_to_databricks(
             (".streamlit/config.toml", "config.toml"),
         ]
         
+        uploaded_count = 0
+
         for local_file, workspace_file in files_to_upload:
             if Path(local_file).exists():
                 with open(local_file, 'rb') as f:
@@ -91,10 +116,15 @@ def upload_to_databricks(
                         overwrite=True
                     )
                     print(f"  ✓ Uploaded {local_file} → {workspace_file_path}")
+                    uploaded_count += 1
                 except Exception as e:
                     print(f"  ⚠ Could not upload {local_file}: {str(e)}")
         
-        print(f"✅ App uploaded to Databricks workspace")
+        if uploaded_count == 0:
+            print("❌ Upload failed: no files were uploaded")
+            return False
+
+        print(f"✅ App uploaded to Databricks workspace ({uploaded_count} files)")
         return True
         
     except Exception as e:

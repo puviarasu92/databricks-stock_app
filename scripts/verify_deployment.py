@@ -9,6 +9,16 @@ import sys
 from databricks.sdk import WorkspaceClient
 
 
+def build_workspace_app_path(workspace_path: str, app_name: str) -> str:
+    """Build a stable Databricks workspace path for verification."""
+    normalized = workspace_path.strip().strip("/")
+    if normalized.startswith("Workspace/"):
+        normalized = normalized[len("Workspace/") :]
+    if normalized.startswith("Users/"):
+        normalized = normalized[len("Users/") :]
+    return f"/Users/{normalized}/{app_name}"
+
+
 def verify_deployment(
     host: str,
     token: str,
@@ -33,7 +43,7 @@ def verify_deployment(
         print(f"✅ Connected as: {user.user_name}")
         
         # Check uploaded files
-        workspace_app_path = f"/Workspace/Users/{workspace_path}/{app_name}"
+        workspace_app_path = build_workspace_app_path(workspace_path, app_name)
         print(f"\n📂 Checking workspace path: {workspace_app_path}")
         
         required_files = [
