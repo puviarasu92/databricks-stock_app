@@ -58,8 +58,8 @@ def main():
     )
     parser.add_argument(
         "--app",
-        default="app.py",
-        choices=["app.py", "app_env.py"],
+        default="src/app.py",
+        choices=["src/app.py", "src/app_env.py"],
         help="Which app file to run"
     )
     

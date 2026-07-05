@@ -128,16 +128,22 @@ if st.session_state.loaded_df is not None:
 
     st.sidebar.header("Data Filters")
 
-    filter_columns = ["symbol", "instrument", "exchange_segment"]
+    requested_filters = [
+        ("symbol", "Symbol"),
+        ("instrument", "Instrument"),
+        ("exchange_segment", "Exchange Segment"),
+    ]
     selected_values = {}
+    column_map = {c.lower(): c for c in df.columns}
 
-    for col in filter_columns:
-        if col in df.columns:
-            options = ["All"] + sorted(df[col].dropna().astype(str).unique().tolist())
-            selected_values[col] = st.sidebar.selectbox(
-                f"{col.replace('_', ' ').title()}",
+    for logical_name, label in requested_filters:
+        actual_col = column_map.get(logical_name)
+        if actual_col:
+            options = ["All"] + sorted(df[actual_col].dropna().astype(str).unique().tolist())
+            selected_values[actual_col] = st.sidebar.selectbox(
+                label,
                 options,
-                key=f"filter_{col}"
+                key=f"filter_{logical_name}"
             )
 
     date_col = detect_date_column(df.columns)
