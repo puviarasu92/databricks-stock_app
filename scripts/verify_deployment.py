@@ -28,9 +28,9 @@ def verify_deployment(
         # Initialize Databricks client
         client = WorkspaceClient(host=f"https://{host}", token=token)
         
-        # Test connection
-        user = client.users.me()
-        print(f"✅ Connected as: {user.emails[0].value}")
+        # Test connection with SDK-compatible current user endpoint
+        user = client.current_user.me()
+        print(f"✅ Connected as: {user.user_name}")
         
         # Check uploaded files
         workspace_app_path = f"/Workspace/Users/{workspace_path}/{app_name}"
